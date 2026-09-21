@@ -1,0 +1,43 @@
+#made this to check crowdstrike, trendmicro and palo-alto since the management was doing Antivirus Top Idol in trying to figure out what to get
+#diagnostic only, ran with clusters of prd, stg and uat via to echo the output into log files
+#ansible-playbook sec-chk.yml -i cluster.ini -l uat-1
+#alternatively if you dont wanna trust the playbook just run (or just wanna get available stuff on
+#ansible uat-1 -m shell -a "rpm -qa | egrep -i 'dls_|vls_|falcon|traps'
+---
+- name: Check security agents
+  hosts: all
+  gather_facts: false
+  become: true
+
+  tasks:
+    - name: Check installed security RPMs
+      ansible.builtin.shell: |
+        rpm -qa | grep -Ei 'ds_agent|vls_agent|falcon-sensor|cortex|traps'
+      register: security_rpms
+      changed_when: false
+      failed_when: false
+
+    - name: Check available security services
+      ansible.builtin.shell: |
+        systemctl list-unit-files --type=service --no-legend | grep -Ei 'ds_agent|vls_agent|falcon|cortex|traps'
+      register: security_services
+      changed_when: false
+      failed_when: false
+
+    - name: Check running security services
+      ansible.builtin.shell: |
+        systemctl list-units --type=service --all --no-legend | grep -Ei 'ds_agent|vls_agent|falcon|cortex|traps'
+      register: security_service_state
+      changed_when: false
+      failed_when: false
+
+    - name: Show results
+      ansible.builtin.debug:
+        msg:
+          - "Host: {{ inventory_hostname }}"
+          - "Installed RPMs:"
+          - "{{ security_rpms.stdout | default('None found', true) }}"
+          - "Available Services:"
+          - "{{ security_services.stdout | default('None found', true) }}"
+          - "Service State:"
+          - "{{ security_service_state.stdout | default('None found', true) }}"
