@@ -1,0 +1,47 @@
+---
+- name: Install Falcon Sensor on Ubuntu Hosts
+  hosts: all
+  become: yes
+
+  vars:
+    falcon_cid: "insert-your-cid-here"
+    deb_path: "/tmp/falcon-sensor_7.37.0-19004_amd64.deb"
+
+  tasks:
+
+    - name: Place Falcon package on target server
+      ansible.builtin.copy:
+        src: "{{ deb_path }}"
+        dest: "{{ deb_path }}"
+        owner: root
+        group: root
+        mode: '0644'
+
+    - name: Deploy Falcon package
+      ansible.builtin.apt:
+        deb: "{{ deb_path }}"
+
+    - name: Remove Falcon installer package
+      ansible.builtin.file:
+        path: "{{ deb_path }}"
+        state: absent
+
+    - name: Provision sensor with CID
+      ansible.builtin.command: "/opt/CrowdStrike/falconctl -s --cid={{ falcon_cid }}"
+      register: cid_result
+      changed_when: false
+
+    - name: Start the sensor service
+      ansible.builtin.service:
+        name: falcon-sensor
+        state: started
+        enabled: yes
+
+    - name: Verify sensor CID
+      ansible.builtin.command: "/opt/CrowdStrike/falconctl -g --cid"
+      register: status_check
+      changed_when: false
+
+    - name: Display status for confirmation
+      ansible.builtin.debug:
+        var: status_check.stdout_lines
