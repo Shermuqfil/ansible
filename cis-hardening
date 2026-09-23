@@ -4,6 +4,7 @@ set -u
 set -o pipefail
 
 CIS_DIR="/root/cis-hardening"
+#ironically you can fail a check for having files in your root directory, change this if you want that 100% pass
 SCAP_DS="/usr/share/xml/scap/ssg/content/ssg-rhel9-ds.xml"
 CIS_PROFILE="xccdf_org.ssgproject.content_profile_cis"
 
