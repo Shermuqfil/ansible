@@ -1,0 +1,74 @@
+#pre-reqs: have your rpms for falcon-sensor stored remotely
+
+---
+- name: Upgrade Falcon Sensor
+  hosts: all
+  become: yes
+  gather_facts: yes
+
+  vars:
+    falcon_cid: "your-cid-string-of-nums-ending-in-checksum"
+	#alternatively throw that shizz into a vault variable
+
+    falcon_rpms:
+      "7":
+        src: "/home/ansible/infosec/falcon-rpms/falcon-sensor-7.36.0-18909.el7.x86_64.rpm"
+        dest: "/tmp/falcon-sensor-7.36.0-18909.el7.x86_64.rpm"
+
+      "8":
+        src: "/home/ansible/infosec/falcon-rpms/falcon-sensor-7.38.0-19102.el8.x86_64.rpm"
+        dest: "/tmp/falcon-sensor-7.38.0-19102.el8.x86_64.rpm"
+
+      "9":
+        src: "/home/ansible/infosec/falcon-rpms/falcon-sensor-7.38.0-19102.el9.x86_64.rpm"
+        dest: "/tmp/falcon-sensor-7.38.0-19102.el9.x86_64.rpm"
+
+  tasks:
+
+    - name: Show detected OS
+      debug:
+        msg:
+          - "Host: {{ inventory_hostname }}"
+          - "OS Major: {{ ansible_distribution_major_version }}"
+          - "RPM: {{ falcon_rpms[ansible_distribution_major_version].src }}"
+
+    - name: Fail if unsupported RHEL version
+      ansible.builtin.fail:
+        msg: "Unsupported RHEL version: {{ ansible_distribution_major_version }}"
+      when: ansible_distribution_major_version not in falcon_rpms
+
+    - name: Copy appropriate Falcon RPM
+      ansible.builtin.copy:
+        src: "{{ falcon_rpms[ansible_distribution_major_version].src }}"
+        dest: "{{ falcon_rpms[ansible_distribution_major_version].dest }}"
+        owner: root
+        group: root
+        mode: '0644'
+
+    - name: Install or upgrade Falcon sensor
+      ansible.builtin.yum:
+        name: "{{ falcon_rpms[ansible_distribution_major_version].dest }}"
+        state: present
+        disable_gpg_check: yes
+
+    - name: Configure CID
+      ansible.builtin.command:
+        cmd: "/opt/CrowdStrike/falconctl -s --cid={{ falcon_cid }}"
+      register: cid_result
+      changed_when: false
+
+    - name: Enable and start Falcon sensor
+      ansible.builtin.service:
+        name: falcon-sensor
+        state: started
+        enabled: yes
+
+    - name: Verify CID
+      ansible.builtin.command:
+        cmd: "/opt/CrowdStrike/falconctl -g --cid"
+      register: status_check
+      changed_when: false
+
+    - name: Display Falcon status
+      ansible.builtin.debug:
+        var: status_check.stdout_lines
